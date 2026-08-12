@@ -1,21 +1,35 @@
-name: RDP
+name: Ngrok Test
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
 
 jobs:
-  build:
+  test:
     runs-on: windows-latest
+
     steps:
       - name: Download ngrok
+        shell: powershell
         run: |
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
-          Expand-Archive ngrok.zip
-          ./ngrok.exe authtoken YOUR_AUTH_TOKEN
+          Invoke-WebRequest "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+          Expand-Archive -Path "ngrok.zip" -DestinationPath "." -Force
 
-      - name: Enable RDP
+          .\ngrok.exe version
+
+      - name: Configure ngrok
+        shell: powershell
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         run: |
-          net user kamel123 MyStrong123 /add
-          net localgroup administrators kamel123 /add
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          ./ngrok.exe tcp 3389
+          .\ngrok.exe config add-authtoken "$env:NGROK_AUTH_TOKEN"
+
+      - name: Start local test server
+        shell: powershell
+        run: |
+          Start-Process powershell -ArgumentList '-NoProfile -Command "python -m http.server 8080"' -WindowStyle Hidden
+          Start-Sleep -Seconds 3
+
+      - name: Start ngrok
+        shell: powershell
+        run: |
+          .\ngrok.exe http 8080
